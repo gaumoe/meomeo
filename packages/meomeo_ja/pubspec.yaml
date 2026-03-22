@@ -1,0 +1,18 @@
+name: meomeo_ja
+description: Japanese language pack for meomeo TTS.
+version: 0.1.0
+repository: https://github.com/gaumoe/meomeo
+topics:
+  - tts
+  - japanese
+  - speech
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+  meomeo:
+    path: ../meomeo
+  dmisaki: ^0.1.0
