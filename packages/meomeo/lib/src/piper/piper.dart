@@ -87,7 +87,7 @@ class MeoPiper implements Meo {
   List<String> get voices => _voices.keys.toList()..sort();
 
   @override
-  Float32List speak(String text, {required Speaker speaker}) {
+  Future<Float32List> speak(String text, {required Speaker speaker}) async {
     final voice = _voices[speaker.voice];
     if (voice == null) {
       throw ArgumentError(

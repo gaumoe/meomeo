@@ -12,8 +12,8 @@ abstract class Meo {
 
   /// Synthesize text to PCM audio.
   ///
-  /// Returns 24kHz mono float32 PCM in range [-1.0, 1.0].
-  Float32List speak(String text, {required Speaker speaker});
+  /// Returns mono float32 PCM in range [-1.0, 1.0].
+  Future<Float32List> speak(String text, {required Speaker speaker});
 
   /// Release all resources.
   void dispose();

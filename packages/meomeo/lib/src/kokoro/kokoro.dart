@@ -68,7 +68,7 @@ class MeoKokoro implements Meo {
   List<String> get voices => _voices.keys.toList()..sort();
 
   @override
-  Float32List speak(String text, {required Speaker speaker}) {
+  Future<Float32List> speak(String text, {required Speaker speaker}) async {
     final chunks = tts.chunkText(text);
     final allSamples = <double>[];
 
