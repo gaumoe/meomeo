@@ -1,3 +1,12 @@
+## 0.2.0
+
+- **Breaking:** Meo is now an interface. Use MeoKitten or MeoKokoro.
+- **Breaking:** Speaker is pure config (voice, phonemizer, speed). No more Meo reference.
+- Added Phonemizer interface for pluggable language support.
+- Added MeoKokoro for Kokoro-82M models.
+- Added AudioWriter interface for pluggable output formats.
+- Monorepo structure with language pack support.
+
 ## 0.1.2
 
 - Improved setup documentation.
