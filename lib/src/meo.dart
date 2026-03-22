@@ -1,23 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:dort/dort.dart';
-import 'package:espeak/espeak.dart';
 
-import 'npz_reader.dart';
-import 'text_cleaner.dart';
+import 'backend.dart';
+import 'kitten_backend.dart';
 import 'wav.dart';
-
-/// Voice names mapping to NPZ keys.
-const _voiceKeys = {
-  'Bella': 'expr-voice-2-f',
-  'Jasper': 'expr-voice-2-m',
-  'Luna': 'expr-voice-4-f',
-  'Bruno': 'expr-voice-4-m',
-  'Rosie': 'expr-voice-3-f',
-  'Hugo': 'expr-voice-3-m',
-  'Kiki': 'expr-voice-5-f',
-  'Leo': 'expr-voice-5-m',
-};
 
 /// Text-to-speech engine.
 ///
@@ -29,20 +16,12 @@ const _voiceKeys = {
 /// ```
 class Meo {
   final Session _session;
-  final Espeak _espeak;
-  final TextCleaner _cleaner;
-  final Map<String, Float32List> _voices;
+  final TtsBackend _backend;
   String _currentVoice;
 
-  Meo._(
-    this._session,
-    this._espeak,
-    this._cleaner,
-    this._voices,
-    this._currentVoice,
-  );
+  Meo._(this._session, this._backend, this._currentVoice);
 
-  /// Initialize the TTS engine.
+  /// Initialize with a KittenTTS model.
   ///
   /// [modelPath] path to the KittenTTS ONNX model.
   /// [voicesPath] path to the voices.npz file.
@@ -55,30 +34,38 @@ class Meo {
     String speaker = 'Luna',
   }) {
     final session = Session.load(modelPath);
-
-    final espeak = Espeak.init(
-      espeakDataPath ?? _defaultEspeakDataPath(),
-      voice: language,
+    final backend = KittenBackend.load(
+      voicesPath: voicesPath,
+      espeakDataPath: espeakDataPath ?? _requireEspeakData(),
+      language: language,
     );
+    return Meo._(session, backend, speaker);
+  }
 
-    // Load full voice embeddings [400, 256] per voice.
-    final npz = NpzReader.load(voicesPath);
-    final voices = <String, Float32List>{};
-    for (final entry in _voiceKeys.entries) {
-      final data = npz[entry.value];
-      if (data != null) voices[entry.key] = data;
-    }
-
-    return Meo._(session, espeak, TextCleaner(), voices, speaker);
+  /// Initialize with a custom backend.
+  ///
+  /// [modelPath] path to the ONNX model.
+  /// [backend] the TTS backend to use.
+  /// [speaker] initial voice name.
+  factory Meo.withBackend(
+    String modelPath, {
+    required TtsBackend backend,
+    String? speaker,
+  }) {
+    final session = Session.load(modelPath);
+    final voice = speaker ?? backend.speakers.first;
+    return Meo._(session, backend, voice);
   }
 
   /// Available speaker names.
-  List<String> get speakers => _voices.keys.toList();
+  List<String> get speakers => _backend.speakers;
 
   /// Set the speaker voice.
   set speaker(String name) {
-    if (!_voices.containsKey(name)) {
-      throw ArgumentError('Unknown speaker: $name. Available: $speakers');
+    if (!_backend.speakers.contains(name)) {
+      throw ArgumentError(
+        'Unknown speaker: $name. Available: ${_backend.speakers}',
+      );
     }
     _currentVoice = name;
   }
@@ -113,41 +100,32 @@ class Meo {
   }
 
   Float32List _speakChunk(String text, {double speed = 1.0}) {
-    final phonemes = _espeak.phonemize(text);
-    final inputIds = _cleaner.encode(phonemes);
-    final seqLen = inputIds.length;
+    final phonemes = _backend.phonemize(text);
+    var inputIds = _backend.encode(phonemes);
 
-    // Select style row based on text length (matching KittenTTS).
-    final voiceData = _voices[_currentVoice];
-    final style = voiceData != null
-        ? _selectStyleRow(voiceData, text.length)
-        : Float32List(256);
+    // Enforce max token limit if backend requires it.
+    final maxTokens = _backend.maxTokens;
+    if (maxTokens > 0 && inputIds.length > maxTokens) {
+      inputIds = Float32List.sublistView(inputIds, 0, maxTokens);
+    }
+
+    final seqLen = inputIds.length;
+    final style = _backend.selectStyle(_currentVoice, text.length);
+    final styleShape = _backend.styleShape;
 
     final outputs = _session.run([
       Tensor.i64('input_ids', inputIds, [1, seqLen]),
-      Tensor('style', style, [1, 256]),
+      Tensor('style', style, styleShape),
       Tensor('speed', Float32List.fromList([speed]), [1]),
     ]);
 
     final wav = outputs.first;
 
-    // Trim last 5000 samples (silence/artifacts), matching KittenTTS.
-    if (wav.length > 5000) {
-      return Float32List.sublistView(wav, 0, wav.length - 5000);
+    final trim = _backend.trimSamples;
+    if (trim > 0 && wav.length > trim) {
+      return Float32List.sublistView(wav, 0, wav.length - trim);
     }
     return wav;
-  }
-
-  /// Select a style embedding row based on text length.
-  static Float32List _selectStyleRow(Float32List fullVoice, int textLen) {
-    const rowSize = 256;
-    final numRows = fullVoice.length ~/ rowSize;
-    final rowIdx = textLen.clamp(0, numRows - 1);
-    return Float32List.sublistView(
-      fullVoice,
-      rowIdx * rowSize,
-      (rowIdx + 1) * rowSize,
-    );
   }
 
   static List<String> _chunkText(String text, {int maxLen = 400}) {
@@ -196,16 +174,18 @@ class Meo {
     saveWav(path, pcm, sampleRate: sampleRate);
   }
 
-  /// Set the phonemization language.
-  void setLanguage(String name) => _espeak.setVoice(name);
+  /// Set the phonemization language (if backend supports it).
+  void setLanguage(String name) {
+    // Backend handles language internally.
+  }
 
   /// Release all resources.
   void dispose() {
     _session.dispose();
-    _espeak.dispose();
+    _backend.dispose();
   }
 
-  static String _defaultEspeakDataPath() {
+  static String _requireEspeakData() {
     throw StateError(
       'espeakDataPath is required until espeak_data package is available',
     );
