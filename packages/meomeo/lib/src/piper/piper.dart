@@ -135,11 +135,9 @@ class MeoPiper implements Meo {
 
     final inputs = [
       Tensor.i64('input', inputIds, [1, seqLen]),
-      Tensor.i64(
-        'input_lengths',
-        Float32List.fromList([seqLen.toDouble()]),
-        [1],
-      ),
+      Tensor.i64('input_lengths', Float32List.fromList([seqLen.toDouble()]), [
+        1,
+      ]),
       Tensor(
         'scales',
         Float32List.fromList([
@@ -231,7 +229,7 @@ class _PiperConfig {
     required this.noiseW,
     required this.phonemeIdMap,
     required this.numSpeakers,
-    this.speakerId = 0,
+    required this.speakerId,
   });
 
   factory _PiperConfig.load(String path) {
@@ -256,6 +254,7 @@ class _PiperConfig {
       noiseW: (inference['noise_w'] as num?)?.toDouble() ?? 0.8,
       phonemeIdMap: phonemeIdMap,
       numSpeakers: (json['num_speakers'] as num?)?.toInt() ?? 1,
+      speakerId: (json['speaker_id'] as num?)?.toInt() ?? 0,
     );
   }
 }

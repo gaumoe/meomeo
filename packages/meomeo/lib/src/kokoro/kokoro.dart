@@ -69,6 +69,13 @@ class MeoKokoro implements Meo {
 
   @override
   Future<Float32List> speak(String text, {required Speaker speaker}) async {
+    if (!_voices.containsKey(speaker.voice)) {
+      throw ArgumentError(
+        'Unknown voice: ${speaker.voice}. '
+        'Available: ${voices.join(', ')}',
+      );
+    }
+
     final chunks = tts.chunkText(text);
     final allSamples = <double>[];
 
@@ -97,10 +104,7 @@ class MeoKokoro implements Meo {
       result = result.replaceAll(from, to);
     }
     result = result.replaceAll('\u0361', '');
-    if (_british) {
-      result = result.replaceAll('ɛː', 'ɛː');
-      result = result.replaceAll('ɪə', 'ɪə');
-    } else {
+    if (!_british) {
       result = result.replaceAll('ɜːɹ', 'ɜɹ');
       result = result.replaceAll('ɜː', 'ɜɹ');
       result = result.replaceAll('ː', '');
@@ -133,11 +137,11 @@ class MeoKokoro implements Meo {
   }
 
   Float32List _selectStyle(String voice, int inputLen) {
-    final voiceData = _voices[voice];
-    if (voiceData == null) return Float32List(256);
+    final voiceData = _voices[voice]!;
 
     const rowSize = 256;
     final numRows = voiceData.length ~/ rowSize;
+    if (numRows == 0) return Float32List(rowSize);
     final rowIdx = inputLen.clamp(0, numRows - 1);
     return Float32List.sublistView(
       voiceData,

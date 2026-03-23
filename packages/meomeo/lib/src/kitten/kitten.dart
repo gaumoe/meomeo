@@ -51,10 +51,9 @@ class MeoKitten implements Meo {
     required String model,
     required String voices,
     required String espeakData,
-    String language = 'en-us',
   }) {
     final session = Session.load(model);
-    final espeak = Espeak.init(espeakData, voice: language);
+    final espeak = Espeak.init(espeakData, voice: 'en-us');
 
     final npz = NpzReader.load(voices);
     final loaded = <String, Float32List>{};
@@ -67,10 +66,17 @@ class MeoKitten implements Meo {
   }
 
   @override
-  List<String> get voices => _voices.keys.toList();
+  List<String> get voices => _voices.keys.toList()..sort();
 
   @override
   Future<Float32List> speak(String text, {required Speaker speaker}) async {
+    if (!_voices.containsKey(speaker.voice)) {
+      throw ArgumentError(
+        'Unknown voice: ${speaker.voice}. '
+        'Available: ${voices.join(', ')}',
+      );
+    }
+
     final chunks = tts.chunkText(text);
     final allSamples = <double>[];
 
@@ -112,11 +118,11 @@ class MeoKitten implements Meo {
   }
 
   Float32List _selectStyle(String voice, int inputLen) {
-    final voiceData = _voices[voice];
-    if (voiceData == null) return Float32List(256);
+    final voiceData = _voices[voice]!;
 
     const rowSize = 256;
     final numRows = voiceData.length ~/ rowSize;
+    if (numRows == 0) return Float32List(rowSize);
     final rowIdx = inputLen.clamp(0, numRows - 1);
     return Float32List.sublistView(
       voiceData,

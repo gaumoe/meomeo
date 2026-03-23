@@ -1,0 +1,8 @@
+include: package:lints/core.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+
+formatter:
+  trailing_commas: preserve

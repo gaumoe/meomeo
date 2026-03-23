@@ -19,7 +19,7 @@ final meo = MeoKokoro(
 final ja = JapanesePhonemizer.init(dictPath: '/path/to/ipadic');
 final yuki = Speaker(voice: 'jf_alpha', phonemizer: ja);
 
-final pcm = meo.speak('こんにちは世界', speaker: yuki);
+final pcm = await meo.speak('こんにちは世界', speaker: yuki);
 saveWav('out.wav', pcm);
 
 meo.dispose();

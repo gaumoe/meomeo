@@ -40,7 +40,7 @@ class NpzReader {
         bytes[1] != 0x4E ||
         bytes[2] != 0x55 ||
         bytes[3] != 0x4D) {
-      throw FormatException('Not a valid .npy file');
+      throw const FormatException('Not a valid .npy file');
     }
 
     final major = bytes[6];
