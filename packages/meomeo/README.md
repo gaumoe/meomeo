@@ -19,7 +19,7 @@ Both compile once via Dart Native Assets on first `dart run`.
 
 ```yaml
 dependencies:
-  meomeo: ^0.2.0
+  meomeo: ^0.3.0
 
 dev_dependencies:
   espeak: ^0.1.0  # needed to compile phoneme data

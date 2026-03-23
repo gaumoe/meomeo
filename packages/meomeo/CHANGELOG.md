@@ -1,3 +1,9 @@
+## 0.3.0
+
+- Added Piper TTS backend.
+- **Breaking:** `Meo.speak()` is now async.
+- Bug fixes and lint cleanup.
+
 ## 0.2.0
 
 - **Breaking:** Meo is now an interface. Use MeoKitten or MeoKokoro.
