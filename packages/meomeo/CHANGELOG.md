@@ -1,3 +1,8 @@
+## 0.3.1
+
+- Fixed espeak global state corruption when multiple engines run in the same process.
+  Kitten and Kokoro now restore their espeak voice before each `speak()` call.
+
 ## 0.3.0
 
 - Added Piper TTS backend.

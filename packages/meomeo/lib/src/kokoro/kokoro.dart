@@ -25,16 +25,19 @@ class MeoKokoro implements Meo {
   final Session _session;
   final Espeak _espeak;
   final Map<String, Float32List> _voices;
+  final String _language;
   final bool _british;
 
   MeoKokoro._({
     required Session session,
     required Espeak espeak,
     required Map<String, Float32List> voices,
+    required String language,
     required bool british,
   }) : _session = session,
        _espeak = espeak,
        _voices = voices,
+       _language = language,
        _british = british;
 
   factory MeoKokoro({
@@ -60,6 +63,7 @@ class MeoKokoro implements Meo {
       session: session,
       espeak: espeak,
       voices: loaded,
+      language: language,
       british: language.contains('gb'),
     );
   }
@@ -75,6 +79,8 @@ class MeoKokoro implements Meo {
         'Available: ${voices.join(', ')}',
       );
     }
+
+    _espeak.setVoice(_language);
 
     final chunks = tts.chunkText(text);
     final allSamples = <double>[];

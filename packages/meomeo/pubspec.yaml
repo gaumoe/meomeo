@@ -1,6 +1,6 @@
 name: meomeo
 description: Text to speech for Dart, powered by espeak-ng and ONNX Runtime.
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/gaumoe/meomeo
 topics:
   - tts

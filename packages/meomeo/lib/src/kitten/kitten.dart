@@ -34,6 +34,8 @@ const _voiceKeys = {
 /// meo.dispose();
 /// ```
 class MeoKitten implements Meo {
+  static const _language = 'en-us';
+
   final Session _session;
   final Espeak _espeak;
   final TextCleaner _cleaner = TextCleaner();
@@ -53,7 +55,7 @@ class MeoKitten implements Meo {
     required String espeakData,
   }) {
     final session = Session.load(model);
-    final espeak = Espeak.init(espeakData, voice: 'en-us');
+    final espeak = Espeak.init(espeakData, voice: _language);
 
     final npz = NpzReader.load(voices);
     final loaded = <String, Float32List>{};
@@ -76,6 +78,8 @@ class MeoKitten implements Meo {
         'Available: ${voices.join(', ')}',
       );
     }
+
+    _espeak.setVoice(_language);
 
     final chunks = tts.chunkText(text);
     final allSamples = <double>[];
