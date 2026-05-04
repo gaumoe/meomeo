@@ -19,10 +19,10 @@ Both compile once via Dart Native Assets on first `dart run`.
 
 ```yaml
 dependencies:
-  meomeo: ^0.3.0
+  meomeo: ^0.3.2
 
 dev_dependencies:
-  espeak: ^0.1.0  # needed to compile phoneme data
+  espeak: ^0.1.3
 ```
 
 ### 2. Compile espeak phoneme data
@@ -136,6 +136,35 @@ final speaker = Speaker(
   phonemizer: custom,  // optional custom phonemizer (for language packs)
 );
 ```
+
+## Word timing
+
+Use `synthesize()` when you need audio metadata. Existing `speak()` calls still
+return PCM audio directly.
+
+```dart
+final result = await meo.synthesize(
+  'Hello world',
+  speaker: luna,
+  timing: SpeechTiming.estimatedWords,
+);
+
+saveWav('output.wav', result.samples, sampleRate: result.sampleRate);
+
+for (final mark in result.marks) {
+  print(
+    '${mark.text}: '
+    '${mark.startSeconds(result.sampleRate)}s - '
+    '${mark.endSeconds(result.sampleRate)}s',
+  );
+}
+```
+
+`SpeechTiming.estimatedWords` preserves source text spans, synthesizes each text
+chunk, then distributes the generated sample range across words by phoneme
+weight. This is designed for karaoke-style highlighting and subtitle cursors. It
+is not forced alignment, so exact phoneme or syllable boundaries are not
+guaranteed.
 
 ## Language packs
 

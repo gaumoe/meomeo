@@ -4,6 +4,7 @@ import 'package:dort/dort.dart';
 import 'package:espeak/espeak.dart';
 
 import '../meo.dart';
+import '../speech_result.dart';
 import '../speaker.dart';
 import '../tts_utils.dart' as tts;
 import 'npz_reader.dart';
@@ -33,7 +34,7 @@ const _voiceKeys = {
 /// meo.speak('Hello world', speaker: luna);
 /// meo.dispose();
 /// ```
-class MeoKitten implements Meo {
+class MeoKitten implements MeoSynthesizer {
   static const _language = 'en-us';
 
   final Session _session;
@@ -72,6 +73,16 @@ class MeoKitten implements Meo {
 
   @override
   Future<Float32List> speak(String text, {required Speaker speaker}) async {
+    final result = await synthesize(text, speaker: speaker);
+    return result.samples;
+  }
+
+  @override
+  Future<SpeechResult> synthesize(
+    String text, {
+    required Speaker speaker,
+    SpeechTiming timing = SpeechTiming.none,
+  }) async {
     if (!_voices.containsKey(speaker.voice)) {
       throw ArgumentError(
         'Unknown voice: ${speaker.voice}. '
@@ -81,20 +92,36 @@ class MeoKitten implements Meo {
 
     _espeak.setVoice(_language);
 
-    final chunks = tts.chunkText(text);
+    final chunks = tts.chunkTextWithSpans(text);
     final allSamples = <double>[];
+    final marks = <SpeechMark>[];
 
     for (final chunk in chunks) {
       final phonemizer = speaker.phonemizer;
-      final phonemes = phonemizer != null
-          ? phonemizer.phonemize(chunk)
-          : _espeak.phonemize(chunk);
+      String phonemize(String value) => phonemizer != null
+          ? phonemizer.phonemize(value)
+          : _espeak.phonemize(value);
+
+      final sampleStart = allSamples.length;
+      final phonemes = phonemize(chunk.text);
       allSamples.addAll(_infer(phonemes, speaker));
+      final sampleEnd = allSamples.length;
+
+      if (timing == SpeechTiming.estimatedWords) {
+        marks.addAll(
+          tts.estimateWordMarks(
+            chunk: chunk,
+            sampleStart: sampleStart,
+            sampleEnd: sampleEnd,
+            weightForWord: (word) => tts.phonemeWeight(phonemize(word.text)),
+          ),
+        );
+      }
     }
 
     final result = Float32List.fromList(allSamples);
     tts.normalize(result);
-    return result;
+    return SpeechResult(samples: result, sampleRate: 24000, marks: marks);
   }
 
   @override

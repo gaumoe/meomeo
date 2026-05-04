@@ -1,3 +1,9 @@
+## 0.3.2
+
+- Added `Meo.synthesize()` with `SpeechResult`, sample-rate metadata, and
+  optional estimated word timing marks for Piper, Kokoro, and Kitten.
+- Raised native dependencies to `espeak ^0.1.3` and `dort ^0.1.1`.
+
 ## 0.3.1
 
 - Fixed espeak global state corruption when multiple engines run in the same process.

@@ -6,6 +6,7 @@ import 'package:dort/dort.dart';
 import 'package:espeak/espeak.dart';
 
 import '../meo.dart';
+import '../speech_result.dart';
 import '../speaker.dart';
 import '../tts_utils.dart' as tts;
 
@@ -23,7 +24,7 @@ import '../tts_utils.dart' as tts;
 /// final samples = meo.speak('Xin chào', speaker: speaker);
 /// meo.dispose();
 /// ```
-class MeoPiper implements Meo {
+class MeoPiper implements MeoSynthesizer {
   final Map<String, _PiperVoice> _voices;
   final Espeak _espeak;
 
@@ -88,6 +89,86 @@ class MeoPiper implements Meo {
 
   @override
   Future<Float32List> speak(String text, {required Speaker speaker}) async {
+    final result = await synthesize(text, speaker: speaker);
+    return result.samples;
+  }
+
+  @override
+  Future<SpeechResult> synthesize(
+    String text, {
+    required Speaker speaker,
+    SpeechTiming timing = SpeechTiming.none,
+  }) async {
+    final segments = <SpeechResult>[];
+    await for (final segment in synthesizeSegments(
+      text,
+      speaker: speaker,
+      timing: timing,
+    )) {
+      segments.add(segment);
+    }
+
+    final totalSamples = segments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.samples.length,
+    );
+    final result = Float32List(totalSamples);
+    final marks = <SpeechMark>[];
+    var sampleOffset = 0;
+
+    for (final segment in segments) {
+      result.setAll(sampleOffset, segment.samples);
+      marks.addAll(
+        segment.marks.map(
+          (mark) => SpeechMark(
+            kind: mark.kind,
+            text: mark.text,
+            textStart: mark.textStart,
+            textEnd: mark.textEnd,
+            sampleStart: sampleOffset + mark.sampleStart,
+            sampleEnd: sampleOffset + mark.sampleEnd,
+          ),
+        ),
+      );
+      sampleOffset += segment.samples.length;
+    }
+
+    tts.normalize(result);
+    return SpeechResult(
+      samples: result,
+      sampleRate: voiceFor(speaker).config.sampleRate,
+      marks: marks,
+    );
+  }
+
+  /// Synthesize text as sentence-sized segments.
+  ///
+  /// This is useful for interactive apps: each segment can be written or played
+  /// independently, avoiding one very large PCM buffer for long input.
+  Stream<SpeechResult> synthesizeSegments(
+    String text, {
+    required Speaker speaker,
+    SpeechTiming timing = SpeechTiming.none,
+  }) async* {
+    final voice = voiceFor(speaker);
+
+    // Set espeak voice to match this model's language.
+    _espeak.setVoice(voice.config.espeakVoice);
+
+    final chunks = tts.chunkTextWithSpans(text);
+    for (final chunk in chunks) {
+      final result = _synthesizeChunk(
+        chunk,
+        voice: voice,
+        speaker: speaker,
+        timing: timing,
+      );
+      yield result;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
+  _PiperVoice voiceFor(Speaker speaker) {
     final voice = _voices[speaker.voice];
     if (voice == null) {
       throw ArgumentError(
@@ -95,24 +176,38 @@ class MeoPiper implements Meo {
         'Available: ${voices.join(', ')}',
       );
     }
+    return voice;
+  }
 
-    // Set espeak voice to match this model's language.
-    _espeak.setVoice(voice.config.espeakVoice);
+  SpeechResult _synthesizeChunk(
+    tts.TextChunk chunk, {
+    required _PiperVoice voice,
+    required Speaker speaker,
+    required SpeechTiming timing,
+  }) {
+    final phonemizer = speaker.phonemizer;
+    String phonemize(String value) => phonemizer != null
+        ? phonemizer.phonemize(value)
+        : _espeak.phonemize(value);
 
-    final chunks = tts.chunkText(text);
-    final allSamples = <double>[];
+    final phonemes = phonemize(chunk.text);
+    final samples = _infer(phonemes, voice, speaker.speed);
+    tts.normalize(samples);
 
-    for (final chunk in chunks) {
-      final phonemizer = speaker.phonemizer;
-      final phonemes = phonemizer != null
-          ? phonemizer.phonemize(chunk)
-          : _espeak.phonemize(chunk);
-      allSamples.addAll(_infer(phonemes, voice, speaker.speed));
-    }
+    final marks = timing == SpeechTiming.estimatedWords
+        ? tts.estimateWordMarks(
+            chunk: chunk,
+            sampleStart: 0,
+            sampleEnd: samples.length,
+            weightForWord: (word) => tts.phonemeWeight(phonemize(word.text)),
+          )
+        : const <SpeechMark>[];
 
-    final result = Float32List.fromList(allSamples);
-    tts.normalize(result);
-    return result;
+    return SpeechResult(
+      samples: samples,
+      sampleRate: voice.config.sampleRate,
+      marks: marks,
+    );
   }
 
   @override
